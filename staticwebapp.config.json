@@ -9,12 +9,9 @@
   "navigationFallback": {
     "rewrite": "/index.html"
   },
-  "miseq": {
-    "rewriteRules": [
-      {
-        "source": "/*",
-        "destination": "/index.html"
-      }
-    ]
+  "build": {
+    "appLocation": "/",
+    "apiLocation": "",
+    "outputLocation": "dist"
   }
 }
