@@ -1,0 +1,20 @@
+{
+  "routes": [
+    {
+      "route": "/*",
+      "serve": "/index.html",
+      "statusCode": 200
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "miseq": {
+    "rewriteRules": [
+      {
+        "source": "/*",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
