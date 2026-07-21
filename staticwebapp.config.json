@@ -12,6 +12,6 @@
   "build": {
     "appLocation": "/",
     "apiLocation": "",
-    "outputLocation": "dist"
+    "outputLocation": "dist/browser"
   }
 }
