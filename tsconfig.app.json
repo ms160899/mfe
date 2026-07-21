@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/app",
+    "types": []
+  },
+  "files": [
+    "src/main.ts",
+    "src/app/date-picker/date-picker-element.ts",
+    "src/app/data-grid/data-grid-element.ts"
+  ],
+  "include": [
+    "src/**/*.d.ts"
+  ]
+}
