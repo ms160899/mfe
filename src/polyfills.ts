@@ -1,8 +1,3 @@
-import { provideZonelessChangeDetection } from '@angular/core';
-
-// Zone.js polyfills. Include this in your main.ts for Angular 16 and older
-// For Angular 20+, use provideZonelessChangeDetection() instead
-
-if (typeof ngDevMode !== 'undefined') {
-  enableDebugTools(getComponent(document.body));
-}
+// This project uses provideZonelessChangeDetection() (Angular 20+).
+// No zone.js or additional polyfills are required for the main build.
+// The test runner (Karma) supplies its own polyfills via angular.json.

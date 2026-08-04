@@ -32,21 +32,22 @@ jobs:
       - name: Build application
         run: npm run build:deploy
 
-      - name: Resolve deploy directory
+      - name: Verify build output
         run: |
-          if [ -f dist/browser/index.html ]; then
-            echo "DEPLOY_DIR=dist/browser" >> $GITHUB_ENV
-          elif [ -f dist/browser/browser/index.html ]; then
-            echo "DEPLOY_DIR=dist/browser/browser" >> $GITHUB_ENV
-          else
-            echo "Unable to find index.html in expected build paths"
+          # Canonical output path — must match angular.json outputPath.
+          DEPLOY_DIR=dist/browser
+          echo "DEPLOY_DIR=$DEPLOY_DIR" >> $GITHUB_ENV
+
+          if [ ! -f "$DEPLOY_DIR/index.html" ]; then
+            echo "::error::index.html not found in $DEPLOY_DIR. Build output may have changed location."
             find dist -maxdepth 4 -type f | sort
             exit 1
           fi
-
-      - name: Verify build output
-        run: |
-          echo "Deploy directory: $DEPLOY_DIR"
+          if [ ! -f "$DEPLOY_DIR/remoteEntry.json" ]; then
+            echo "::error::remoteEntry.json not found in $DEPLOY_DIR. Federation aliases may not have run."
+            exit 1
+          fi
+          echo "Build output verified: $DEPLOY_DIR"
           ls -la "$DEPLOY_DIR/index.html"
           ls -la "$DEPLOY_DIR/remoteEntry.json"
 

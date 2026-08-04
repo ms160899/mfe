@@ -1,12 +1,22 @@
 /**
  * Embed SDK for iframe Integration
- * 
+ *
  * Wraps the iframe creation + postMessage protocol for safe, framework-agnostic embedding.
- * 
+ *
  * Usage:
  * import { mountApp } from '@app/embed-sdk';
  * mountApp('#container', { src: 'https://app.yourorg.com', theme: 'dark' });
  */
+
+import {
+  PostMessagePayload,
+  MessagePayloadMap,
+  MessageType,
+  isPostMessagePayload,
+} from './app/shared/post-message.types';
+
+export type { PostMessagePayload, MessagePayloadMap, MessageType };
+
 
 export interface EmbedConfig {
   /**
@@ -68,25 +78,8 @@ export interface EmbedConfig {
 export interface EmbedError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
-
-export interface PostMessagePayload {
-  type: string;
-  payload: any;
-  timestamp: number;
-}
-
-const ALLOWED_MESSAGE_TYPES = [
-  'HEIGHT_CHANGE',
-  'NAVIGATE',
-  'ROUTE_CHANGE',
-  'AUTH_TOKEN',
-  'THEME',
-  'LOCALE',
-  'ERROR',
-  'READY'
-];
 
 /**
  * Mount the embedded app in a container
@@ -113,6 +106,7 @@ export class EmbedInstance {
   private messageQueue: PostMessagePayload[] = [];
   private isReady = false;
   private allowedOrigins: string[] = [];
+  private boundMessageHandler: ((event: MessageEvent) => void) | null = null;
 
   constructor(container: HTMLElement, config: EmbedConfig) {
     this.container = container;
@@ -164,12 +158,12 @@ export class EmbedInstance {
    * Handle iframe load event
    */
   private onIframeLoaded() {
-    // Send queued messages
+    const targetOrigin = this.allowedOrigins[0] ?? '*';
+
+    // Flush queued messages that were sent before the iframe was ready.
     while (this.messageQueue.length > 0) {
-      const msg = this.messageQueue.shift();
-      if (msg) {
-        this.send(msg.type, msg.payload);
-      }
+      const msg = this.messageQueue.shift()!;
+      this.iframe!.contentWindow!.postMessage(msg, targetOrigin);
     }
 
     // Send initial config
@@ -205,25 +199,27 @@ export class EmbedInstance {
    * Setup postMessage listener
    */
   private setupMessageListener() {
-    window.addEventListener('message', (event: MessageEvent) => {
-      // Validate origin — CRITICAL SECURITY CONTROL
+    this.boundMessageHandler = (event: MessageEvent) => {
+      // Origin check — CRITICAL SECURITY CONTROL.
+      // The SDK always knows the embedded app's origin (derived from config.src).
       if (!this.allowedOrigins.includes(event.origin)) {
         console.warn(`Rejecting message from unauthorized origin: ${event.origin}`);
         return;
       }
 
+      // Source check — must come from our iframe, not another frame on the page.
       if (event.source !== this.iframe?.contentWindow) {
         return;
       }
 
-      const payload: PostMessagePayload = event.data;
-      if (!payload.type || !ALLOWED_MESSAGE_TYPES.includes(payload.type)) {
-        console.warn(`Unknown message type: ${payload.type}`);
+      // Structural validation against the typed protocol contract.
+      if (!isPostMessagePayload(event.data)) {
         return;
       }
 
-      this.handleMessage(payload);
-    });
+      this.handleMessage(event.data);
+    };
+    window.addEventListener('message', this.boundMessageHandler);
   }
 
   /**
@@ -233,43 +229,39 @@ export class EmbedInstance {
     switch (payload.type) {
       case 'HEIGHT_CHANGE':
         if (this.config.autoResize && this.iframe) {
-          const height = payload.payload.height;
-          this.iframe.style.height = `${height}px`;
-          this.config.onHeightChange?.(height);
+          this.iframe.style.height = `${payload.payload.height}px`;
+          this.config.onHeightChange?.(payload.payload.height);
         }
         break;
 
       case 'NAVIGATE':
       case 'ROUTE_CHANGE':
-        // Handle deep linking or history state sync if needed
         console.log('Route changed in embedded app:', payload.payload.path);
         break;
 
       case 'ERROR':
-        this.config.onError?.(payload.payload);
+        this.config.onError?.(payload.payload as EmbedError);
         break;
 
       default:
-        console.log('Unhandled message type:', payload.type);
+        break;
     }
   }
 
   /**
-   * Send a message to the iframe
+   * Send a typed message to the iframe.
+   * The target origin is always the embedded app's own origin (derived from
+   * config.src), so messages are never broadcast to unintended frames.
    */
-  private send(type: string, payload: any) {
+  private send<T extends MessageType>(type: T, data: MessagePayloadMap[T]) {
+    const message = { type, payload: data, timestamp: Date.now() } as PostMessagePayload;
+    const targetOrigin = this.allowedOrigins[0] ?? '*';
+
     if (!this.iframe?.contentWindow) {
-      this.messageQueue.push({ type, payload, timestamp: Date.now() });
+      this.messageQueue.push(message);
       return;
     }
 
-    const message: PostMessagePayload = {
-      type,
-      payload,
-      timestamp: Date.now()
-    };
-
-    const targetOrigin = this.allowedOrigins[0] || '*';
     this.iframe.contentWindow.postMessage(message, targetOrigin);
   }
 
@@ -308,6 +300,10 @@ export class EmbedInstance {
    * Public API: Destroy the embed
    */
   destroy() {
+    if (this.boundMessageHandler) {
+      window.removeEventListener('message', this.boundMessageHandler);
+      this.boundMessageHandler = null;
+    }
     if (this.iframe) {
       this.iframe.remove();
       this.iframe = null;

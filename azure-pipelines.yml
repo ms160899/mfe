@@ -4,20 +4,49 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+# Canonical build output directory — must match angular.json outputPath.
+variables:
+  BUILD_OUTPUT_DIR: 'dist/browser'
+
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: '20'
     displayName: 'Install Node.js'
-  
+
   - script: npm ci
     displayName: 'Install dependencies'
-  
+
   - script: npm run build:deploy
     displayName: 'Build application'
-  
+
+  - bash: |
+      if [ ! -f "$(BUILD_OUTPUT_DIR)/index.html" ]; then
+        echo "##vso[task.logissue type=error]index.html not found in $(BUILD_OUTPUT_DIR). Build output may have changed location."
+        exit 1
+      fi
+      if [ ! -f "$(BUILD_OUTPUT_DIR)/remoteEntry.json" ]; then
+        echo "##vso[task.logissue type=error]remoteEntry.json not found in $(BUILD_OUTPUT_DIR). Federation aliases may not have run."
+        exit 1
+      fi
+      echo "Build output verified in $(BUILD_OUTPUT_DIR)"
+      ls -la "$(BUILD_OUTPUT_DIR)/index.html"
+      ls -la "$(BUILD_OUTPUT_DIR)/remoteEntry.json"
+    displayName: 'Verify build output'
+
+  - bash: cp staticwebapp.config.json "$(BUILD_OUTPUT_DIR)/staticwebapp.config.json"
+    displayName: 'Include SWA config in deploy directory'
+
+  - task: CopyFiles@2
+    inputs:
+      sourceFolder: '$(BUILD_OUTPUT_DIR)'
+      contents: '**'
+      targetFolder: '$(Build.ArtifactStagingDirectory)'
+    displayName: 'Copy build output to staging directory'
+
   - task: PublishBuildArtifacts@1
     inputs:
       pathToPublish: $(Build.ArtifactStagingDirectory)
       artifactName: dist
       publishLocation: Container
+    displayName: 'Publish artifact'

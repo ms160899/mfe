@@ -1,17 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 
-const outputCandidates = [
-  path.join(process.cwd(), 'dist', 'browser', 'browser'),
-  path.join(process.cwd(), 'dist', 'browser')
-];
+// Canonical output path — must match angular.json outputPath (dist/browser).
+// A single source of truth here prevents silent deployment to a wrong directory
+// if the builder ever changes its nesting behaviour.
+const OUTPUT_DIR = path.join(process.cwd(), 'dist', 'browser');
 
 function findOutputDir() {
-  for (const dir of outputCandidates) {
-    const manifestPath = path.join(dir, 'remoteEntry.json');
-    if (fs.existsSync(manifestPath)) {
-      return { dir, manifestPath };
-    }
+  const manifestPath = path.join(OUTPUT_DIR, 'remoteEntry.json');
+  if (fs.existsSync(manifestPath)) {
+    return { dir: OUTPUT_DIR, manifestPath };
   }
   return null;
 }
