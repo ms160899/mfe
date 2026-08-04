@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Build application
-        run: npm run build
+        run: npm run build:deploy
 
       - name: Resolve deploy directory
         run: |
