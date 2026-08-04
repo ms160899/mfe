@@ -32,10 +32,23 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Resolve deploy directory
+        run: |
+          if [ -f dist/browser/index.html ]; then
+            echo "DEPLOY_DIR=dist/browser" >> $GITHUB_ENV
+          elif [ -f dist/browser/browser/index.html ]; then
+            echo "DEPLOY_DIR=dist/browser/browser" >> $GITHUB_ENV
+          else
+            echo "Unable to find index.html in expected build paths"
+            find dist -maxdepth 4 -type f | sort
+            exit 1
+          fi
+
       - name: Verify build output
         run: |
-          ls -la dist/browser/index.html
-          ls -la dist/browser/remoteEntry.json
+          echo "Deploy directory: $DEPLOY_DIR"
+          ls -la "$DEPLOY_DIR/index.html"
+          ls -la "$DEPLOY_DIR/remoteEntry.json"
 
       - name: Build And Deploy
         id: builddeploy
@@ -46,7 +59,7 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "dist/browser" # Built app content directory
+          app_location: ${{ env.DEPLOY_DIR }} # Built app content directory
           api_location: "" # Api source code path - optional
           output_location: ""
           skip_app_build: true
